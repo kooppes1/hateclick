@@ -2,17 +2,17 @@ import streamlit as st
 from datetime import datetime
 from fpdf import FPDF
 import tempfile
-import openai
 import json
+from openai import OpenAI
 
-# Initialise la clé API OpenAI
-openai.api_key = st.secrets["openai_api_key"]
+# Initialise le client OpenAI avec clé secrète
+client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-# Initialise l'écran
+# Initialise l'écran de départ
 if 'current_screen' not in st.session_state:
     st.session_state.current_screen = 1
 
-# 🔍 Analyse intelligente avec IA
+# 🔍 Analyse intelligente avec OpenAI GPT-4
 def analyze_comment(comment_text, platform):
     prompt = f"""
 Tu es un juriste expert en droit français, spécialisé dans les propos haineux en ligne.
@@ -32,9 +32,9 @@ Réponds au format JSON :
     "legal_advice": "...",
     "reasoning": "..."
 }}
-    """
+"""
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": "Tu es un juriste spécialisé en droit pénal et numérique."},
@@ -42,7 +42,7 @@ Réponds au format JSON :
             ],
             temperature=0.3
         )
-        content = response["choices"][0]["message"]["content"]
+        content = response.choices[0].message.content
         return json.loads(content)
     except Exception as e:
         st.error(f"Erreur d'analyse IA : {e}")
@@ -53,7 +53,7 @@ Réponds au format JSON :
             "reasoning": ""
         }
 
-# 📄 Génération de PDF
+# 📄 Générer le PDF de plainte
 def generate_pdf(user_info, comment_info, analysis_result):
     pdf = FPDF()
     pdf.add_page()
@@ -100,7 +100,7 @@ def generate_pdf(user_info, comment_info, analysis_result):
     pdf.output(temp_file.name)
     return temp_file.name
 
-# Écran 1 : Signalement
+# Écran 1 : Saisie du commentaire
 def screen_report():
     st.title("Signale un commentaire haineux en 2 minutes")
 
@@ -125,7 +125,7 @@ def screen_report():
                 }
                 st.session_state.current_screen = 2
 
-# Écran 2 : Résultat IA
+# Écran 2 : Résultat de l'analyse
 def screen_analysis():
     st.title("Voici ce que nous avons détecté")
 
@@ -149,7 +149,7 @@ def screen_analysis():
         st.session_state.analysis_result = analysis_result
         st.session_state.current_screen = 3
 
-# Écran 3 : PDF
+# Écran 3 : Génération et téléchargement de la plainte
 def screen_complaint():
     st.title("Voici ton document de plainte à imprimer ou envoyer")
 
