@@ -1,6 +1,5 @@
 import streamlit as st
 from datetime import datetime
-import pdfkit
 from fpdf import FPDF
 import base64
 import tempfile
