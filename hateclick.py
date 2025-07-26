@@ -4,6 +4,7 @@ from fpdf import FPDF
 import tempfile
 import json
 from openai import OpenAI
+import os
 
 # Configuration initiale
 st.set_page_config(
@@ -95,7 +96,7 @@ def generate_pdf(user_info, comment_info, analysis_result):
     pdf.set_font("Helvetica", 'B', 14)
     pdf.cell(0, 10, "Analyse juridique", ln=1)
     pdf.set_font("Helvetica", size=12)
-    pdf.cell(0, 10, f"Infractions: {', '.join(analysis_result['offenses']}", ln=1)
+    pdf.cell(0, 10, f"Infractions: {', '.join(analysis_result['offenses'])}", ln=1)  # Correction ici
     pdf.cell(0, 10, f"Gravité: {analysis_result['severity']}", ln=1)
     pdf.multi_cell(0, 10, f"Conseil: {analysis_result['legal_advice']}")
     
@@ -106,8 +107,10 @@ def generate_pdf(user_info, comment_info, analysis_result):
     
     # Sauvegarde temporaire
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
-    pdf.output(temp_file.name)
-    return temp_file.name
+    pdf_path = temp_file.name
+    pdf.output(pdf_path)
+    temp_file.close()
+    return pdf_path
 
 # Écrans de l'application
 def screen_report():
@@ -186,6 +189,7 @@ def screen_complaint():
             file_name="plainte_hateclick.pdf",
             mime="application/pdf"
         )
+    os.unlink(pdf_path)  # Nettoyage du fichier temporaire
     
     # Options
     st.subheader("Prochaines étapes")
