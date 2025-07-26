@@ -17,8 +17,8 @@ st.set_page_config(
 def clean_text(text):
     if not text:
         return ""
-    text = text.replace('\x00', '')
-    return re.sub(r'[^\x00-\x7F\xa0-\xffĀ-ſ\s.,!?;:\-()"\'/]+', '', text)
+    text = text.encode("latin-1", "ignore").decode("latin-1")
+    return text.replace('\x00', '').replace('\n', ' ').strip()
 
 # Initialisation client OpenAI
 client = OpenAI(api_key=st.secrets["openai_api_key"])
@@ -74,7 +74,6 @@ Format JSON strict :
 }}
 Merci de répondre uniquement avec ce JSON.
 """
-
     try:
         response = client.chat.completions.create(
             model="gpt-4",
@@ -101,28 +100,27 @@ Merci de répondre uniquement avec ce JSON.
             "conseils": []
         }
 
-# Génération PDF
+# Génération PDF (sans police externe)
 def generate_legal_report(user_info, content_info, analysis):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_font("Helvetica", size=12)
 
-    # En-tête
-    pdf.set_font("Arial", 'B', 16)
+    pdf.set_font("Helvetica", 'B', 16)
     pdf.cell(190, 10, "DOSSIER DE PLAINTE", ln=1, align='C')
-    pdf.set_font("Arial", 'I', 10)
+    pdf.set_font("Helvetica", 'I', 10)
     pdf.cell(190, 5, f"Généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')}", ln=1, align='C')
     pdf.ln(15)
 
-    # Identité
-    pdf.set_font("Arial", 'B', 12)
+    pdf.set_font("Helvetica", 'B', 12)
     pdf.cell(190, 10, "I. IDENTITÉ DES PARTIES", ln=1, border='B')
 
-    pdf.set_font("Arial", 'B', 10)
+    pdf.set_font("Helvetica", 'B', 10)
     pdf.cell(95, 8, "PLAIGNANT:", ln=0)
     pdf.cell(95, 8, "AUTEUR:", ln=1)
 
-    pdf.set_font("Arial", '', 10)
+    pdf.set_font("Helvetica", '', 10)
     pdf.cell(95, 7, f"Nom: {clean_text(user_info.get('name'))}", ln=0)
     pdf.cell(95, 7, f"Pseudonyme: {clean_text(content_info.get('author'))}", ln=1)
     pdf.cell(95, 7, f"Adresse: {clean_text(user_info.get('address'))}", ln=0)
@@ -131,13 +129,10 @@ def generate_legal_report(user_info, content_info, analysis):
     pdf.cell(95, 7, f"Lien: {clean_text(content_info.get('url'))}", ln=1)
     pdf.ln(10)
 
-    # Faits
-    pdf.set_font("Arial", 'B', 12)
+    pdf.set_font("Helvetica", 'B', 12)
     pdf.cell(190, 10, "II. EXPOSÉ DES FAITS", ln=1, border='B')
-    pdf.set_font("Arial", '', 10)
-    facts = f"""
-Le {datetime.now().strftime('%d/%m/%Y')}, j'ai constaté la publication suivante sur {content_info['platform']} :
-
+    pdf.set_font("Helvetica", '', 10)
+    facts = f"""Le {datetime.now().strftime('%d/%m/%Y')}, j'ai constaté la publication suivante sur {content_info['platform']} :
 « {clean_text(content_info['comment'])} »
 
 Ce contenu constitue selon moi les infractions détaillées ci-dessous.
@@ -145,59 +140,57 @@ Ce contenu constitue selon moi les infractions détaillées ci-dessous.
     pdf.multi_cell(190, 7, facts)
     pdf.ln(5)
 
-    # Analyse
-    pdf.set_font("Arial", 'B', 12)
+    pdf.set_font("Helvetica", 'B', 12)
     pdf.cell(190, 10, "III. ANALYSE JURIDIQUE", ln=1, border='B')
 
-    pdf.set_font("Arial", 'B', 10)
+    pdf.set_font("Helvetica", 'B', 10)
     pdf.cell(100, 8, "INFRACTION", border=1, ln=0)
     pdf.cell(90, 8, "PEINE ENCOURUE", border=1, ln=1)
-    pdf.set_font("Arial", '', 9)
+    pdf.set_font("Helvetica", '', 9)
     for offense in analysis.get("infractions", []):
-        pdf.cell(100, 7, f"{offense.get('article')} : {offense.get('description')}", border=1)
-        pdf.cell(90, 7, offense.get("peine", "N/A"), border=1, ln=1)
+        pdf.cell(100, 7, f"{clean_text(offense.get('article'))} : {clean_text(offense.get('description'))}", border=1)
+        pdf.cell(90, 7, clean_text(offense.get("peine", "N/A")), border=1, ln=1)
 
     pdf.ln(5)
-    pdf.set_font("Arial", 'B', 10)
+    pdf.set_font("Helvetica", 'B', 10)
     pdf.cell(95, 7, "CHANCES DE SUCCÈS:", ln=0)
-    pdf.cell(95, 7, f"DELAI PRESCRIPTION:", ln=1)
-    pdf.set_font("Arial", '', 9)
-    pdf.cell(95, 7, analysis.get("success_chance", "N/A"), ln=0)
-    pdf.cell(95, 7, analysis.get("delais", {}).get("prescription", "N/A"), ln=1)
+    pdf.cell(95, 7, "DÉLAI PRESCRIPTION:", ln=1)
+    pdf.set_font("Helvetica", '', 9)
+    pdf.cell(95, 7, clean_text(analysis.get("success_chance", "N/A")), ln=0)
+    pdf.cell(95, 7, clean_text(analysis.get("delais", {}).get("prescription", "N/A")), ln=1)
     pdf.ln(5)
 
-    pdf.set_font("Arial", 'B', 10)
+    pdf.set_font("Helvetica", 'B', 10)
     pdf.cell(190, 7, "PREUVES NÉCESSAIRES:", ln=1)
-    pdf.set_font("Arial", '', 9)
+    pdf.set_font("Helvetica", '', 9)
     for proof in analysis.get("preuves", []):
-        pdf.cell(190, 6, f"- {proof}", ln=1)
-    pdf.ln(8)
+        pdf.cell(190, 6, f"- {clean_text(proof)}", ln=1)
 
-    pdf.set_font("Arial", 'B', 10)
+    pdf.ln(8)
+    pdf.set_font("Helvetica", 'B', 10)
     pdf.cell(190, 7, "ESTIMATION DES COÛTS:", ln=1)
     costs = analysis.get("couts", {})
-    pdf.set_font("Arial", '', 9)
+    pdf.set_font("Helvetica", '', 9)
     pdf.cell(95, 6, "Dépôt de plainte:", ln=0)
-    pdf.cell(95, 6, costs.get("plainte", "Gratuit"), ln=1)
+    pdf.cell(95, 6, clean_text(costs.get("plainte", "Gratuit")), ln=1)
     pdf.cell(95, 6, "Honoraires avocat:", ln=0)
-    pdf.cell(95, 6, costs.get("avocat", "Variable"), ln=1)
+    pdf.cell(95, 6, clean_text(costs.get("avocat", "Variable")), ln=1)
     pdf.cell(95, 6, "Coût total estimé:", ln=0)
-    pdf.cell(95, 6, costs.get("total", "N/A"), ln=1)
+    pdf.cell(95, 6, clean_text(costs.get("total", "N/A")), ln=1)
     pdf.ln(10)
 
-    # Signature
-    pdf.set_font("Arial", 'I', 10)
+    pdf.set_font("Helvetica", 'I', 10)
     pdf.cell(190, 7, "Fait à ____________________________________, le _________________________", ln=1, align='C')
     pdf.ln(15)
     pdf.cell(190, 7, "Signature précédée de la mention « Lu et approuvé »", ln=1, align='C')
-    pdf.set_font("Arial", 'I', 8)
+    pdf.set_font("Helvetica", 'I', 8)
     pdf.cell(190, 5, "Document généré par HateClick - Ne remplace pas une consultation juridique", ln=1, align='C')
 
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
     pdf.output(temp_file.name)
     return temp_file.name
 
-# UI - Écran 1
+# UI écran 1
 def screen_report():
     st.title("🛡️ Signalement de Contenu Haineux")
     with st.form("report_form"):
@@ -232,7 +225,7 @@ def screen_report():
                 st.session_state.current_screen = 2
                 st.rerun()
 
-# UI - Écran 2
+# UI écran 2
 def screen_analysis():
     st.title("🔍 Analyse Juridique")
     with st.spinner("Analyse en cours par nos juristes..."):
@@ -244,9 +237,9 @@ def screen_analysis():
 
     st.subheader("Infractions identifiées")
     for offense in analysis.get("infractions", []):
-        with st.expander(f"⚖️ {offense.get('article')}"):
-            st.markdown(f"**Description:** {offense.get('description')}")
-            st.markdown(f"**Peine encourue:** {offense.get('peine')}")
+        with st.expander(f"{offense.get('article')}"):
+            st.markdown(f"**Description :** {offense.get('description')}")
+            st.markdown(f"**Peine encourue :** {offense.get('peine')}")
 
     st.subheader("📊 Probabilité de succès")
     col1, col2 = st.columns(2)
@@ -258,9 +251,9 @@ def screen_analysis():
     st.subheader("💶 Coûts estimés")
     costs = analysis.get("couts", {})
     st.markdown(f"""
-    - **Dépôt de plainte:** {costs.get("plainte", "Gratuit")}
-    - **Honoraires d'avocat:** {costs.get("avocat", "Variable")}
-    - **Coût total estimé:** {costs.get("total", "N/A")}
+    - **Dépôt de plainte :** {costs.get("plainte", "Gratuit")}
+    - **Honoraires d'avocat :** {costs.get("avocat", "Variable")}
+    - **Coût total estimé :** {costs.get("total", "N/A")}
     """)
 
     st.subheader("🔎 Preuves nécessaires")
@@ -271,7 +264,7 @@ def screen_analysis():
         st.session_state.current_screen = 3
         st.rerun()
 
-# UI - Écran 3
+# UI écran 3
 def screen_complaint():
     st.title("📄 Votre plainte est prête")
     pdf_path = generate_legal_report(
@@ -286,20 +279,13 @@ def screen_complaint():
                            mime="application/pdf")
 
     st.markdown("""
-    **📌 Procédure recommandée:**
+    **📌 Procédure recommandée :**
     1. Imprimez et signez le document
     2. Rassemblez toutes les preuves listées
-    3. Déposez la plainte en commissariat ou envoyez-la au procureur
-    """)
+    3. Déposez en commissariat ou envoyez au procureur
 
-    st.subheader("🛠️ Ressources utiles")
-    cols = st.columns(3)
-    with cols[0]:
-        st.link_button("PHAROS", "https://www.internet-signalement.gouv.fr")
-    with cols[1]:
-        st.link_button("Trouver un avocat", "https://www.annuaire-des-avocats.fr")
-    with cols[2]:
-        st.link_button("Commissariats", "https://www.google.com/maps/search/commissariat")
+    Vous pouvez aussi signaler sur [PHAROS](https://www.internet-signalement.gouv.fr).
+    """)
 
     if st.button("↩️ Nouveau signalement"):
         st.session_state.current_screen = 1
@@ -308,7 +294,7 @@ def screen_complaint():
 # Navigation principale
 def main():
     st.sidebar.title("⚖️ HateClick")
-    st.sidebar.markdown("**Outil officiel de signalement**\nConforme à la procédure pénale française")
+    st.sidebar.markdown("**Outil de signalement juridique automatisé**\nConforme à la procédure pénale française")
     if st.session_state.current_screen == 1:
         screen_report()
     elif st.session_state.current_screen == 2:
