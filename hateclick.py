@@ -121,7 +121,13 @@ def generate_pdf(user_info, comment_info, analysis_result):
         pdf.cell(200, 10, txt="Informations complémentaires", ln=1)
         pdf.set_font("Arial", size=12)
         pdf.multi_cell(0, 10, txt=f"Sanctions : {remove_emojis(analysis_result['penalty']['text'])}")
-        pdf.multi_cell(0, 10, txt=f"Conditions : {'; '.join(analysis_result['penalty']['conditions'])}")
+
+        conditions = analysis_result['penalty'].get('conditions', [])
+        if conditions:
+            pdf.cell(200, 10, txt="Conditions :", ln=1)
+            for cond in conditions:
+                pdf.multi_cell(0, 10, txt=remove_emojis(cond))
+
         pdf.cell(200, 10, txt=f"Chances de succès : {analysis_result['penalty']['chances']}", ln=1)
         pdf.cell(200, 10, txt=f"Coût estimé : {analysis_result['penalty']['estimated_cost']}", ln=1)
 
