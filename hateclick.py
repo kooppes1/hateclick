@@ -6,16 +6,17 @@ import json
 import re
 from openai import OpenAI
 
-# 🔐 Initialise le client OpenAI
+# 🔐 Initialise le client OpenAI avec clé sécurisée via .streamlit/secrets.toml
 client = OpenAI(api_key=st.secrets["openai_api_key"])
 
+# 🔧 Nettoyage des caractères non imprimables (emojis, Unicode)
 def remove_emojis(text):
     return re.sub(r'[^\x00-\x7F\u00A0-\u00FF\u0100-\u017F]+', '', text)
 
 if 'current_screen' not in st.session_state:
     st.session_state.current_screen = 1
 
-# 🔍 Analyse IA enrichie
+# 🔍 Analyse IA juridique
 def analyze_comment(comment_text, platform):
     prompt = f"""
 Tu es un juriste expert en droit français spécialisé dans les propos haineux en ligne.
@@ -71,7 +72,7 @@ Réponds au format JSON :
             }
         }
 
-# 📄 Génération PDF
+# 📄 Génération PDF avec protection FPDF
 def generate_pdf(user_info, comment_info, analysis_result):
     pdf = FPDF()
     pdf.add_page()
@@ -96,7 +97,7 @@ def generate_pdf(user_info, comment_info, analysis_result):
     pdf.cell(200, 10, txt=f"Auteur: {comment_info.get('author', 'Inconnu')}", ln=1)
     pdf.cell(200, 10, txt=f"Date: {datetime.now().strftime('%d/%m/%Y %H:%M')}", ln=1)
     pdf.ln(5)
-    pdf.multi_cell(0, 10, txt=f"Commentaire signalé : {remove_emojis(comment_info['comment'])}")
+    pdf.multi_cell(190, 10, txt=f"Commentaire signalé : {remove_emojis(comment_info['comment'])}")
     pdf.ln(10)
 
     pdf.set_font("Arial", 'B', 14)
@@ -105,18 +106,21 @@ def generate_pdf(user_info, comment_info, analysis_result):
     pdf.cell(200, 10, txt=f"Infractions détectées : {', '.join(analysis_result['offenses'])}", ln=1)
     pdf.cell(200, 10, txt=f"Niveau de gravité : {analysis_result['severity'].replace('🟢','faible').replace('🟠','moyenne').replace('🔴','élevée')}", ln=1)
     pdf.ln(5)
-    pdf.multi_cell(0, 10, txt=f"Conseil : {remove_emojis(analysis_result['legal_advice'])}")
+    pdf.multi_cell(190, 10, txt=f"Conseil : {remove_emojis(analysis_result['legal_advice'])}")
     pdf.ln(5)
-    pdf.multi_cell(0, 10, txt=f"Analyse IA : {remove_emojis(analysis_result['reasoning'])}")
+    pdf.multi_cell(190, 10, txt=f"Analyse IA : {remove_emojis(analysis_result['reasoning'])}")
 
     pdf.ln(10)
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(200, 10, txt="Informations légales supplémentaires", ln=1)
     pdf.set_font("Arial", size=12)
-    pdf.multi_cell(0, 10, txt=f"Sanctions encourues : {remove_emojis(analysis_result['penalty']['text'])}")
+    pdf.multi_cell(190, 10, txt=f"Sanctions encourues : {remove_emojis(analysis_result['penalty']['text'])}")
     pdf.cell(200, 10, txt="Conditions à remplir :", ln=1)
     for cond in analysis_result["penalty"]["conditions"]:
-        pdf.multi_cell(0, 10, txt=f"- {remove_emojis(cond)}")
+        cleaned = remove_emojis(cond)
+        lines = cleaned.split("\n")
+        for line in lines:
+            pdf.multi_cell(190, 10, txt=f"- {line.strip()}")
     pdf.cell(200, 10, txt=f"Chances de succès : {analysis_result['penalty']['chances']}", ln=1)
     pdf.cell(200, 10, txt=f"Coût estimé : {analysis_result['penalty']['estimated_cost']}", ln=1)
 
@@ -128,7 +132,7 @@ def generate_pdf(user_info, comment_info, analysis_result):
     pdf.output(temp_file.name)
     return temp_file.name
 
-# Écran 1
+# Écran 1 : Formulaire
 def screen_report():
     st.title("Signale un commentaire haineux en 2 minutes")
     with st.form("report_form"):
@@ -151,7 +155,7 @@ def screen_report():
                 }
                 st.session_state.current_screen = 2
 
-# Écran 2
+# Écran 2 : Résultat IA
 def screen_analysis():
     st.title("Voici ce que nous avons détecté")
     user_input = st.session_state.user_input
@@ -188,7 +192,7 @@ def screen_analysis():
         st.session_state.analysis_result = analysis_result
         st.session_state.current_screen = 3
 
-# Écran 3
+# Écran 3 : PDF
 def screen_complaint():
     st.title("Voici ton document de plainte à imprimer ou envoyer")
     with st.expander("Vos coordonnées (optionnel)"):
@@ -217,7 +221,7 @@ def screen_complaint():
         st.session_state.analysis_result = None
         st.rerun()
 
-# Lancement app
+# Main
 def main():
     st.sidebar.title("HateClick v0.1")
     st.sidebar.markdown("""
