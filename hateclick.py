@@ -1,55 +1,69 @@
 import streamlit as st
 from datetime import datetime
-import pdfkit
 from fpdf import FPDF
-import base64
 import tempfile
 import os
+import openai
+import json
 
-# Initialize session state
+# Initialise la clé API OpenAI
+openai.api_key = st.secrets["openai_api_key"]
+
+# Initialiser l'état de l'app
 if 'current_screen' not in st.session_state:
     st.session_state.current_screen = 1
 
-# Mock AI analysis function
+# 🔍 Analyse IA
 def analyze_comment(comment_text, platform):
-    # This would be replaced with actual AI analysis
-    offenses = []
-    severity = "🟢"
-    
-    hate_keywords = ["haine", "race", "juif", "musulman", "salope", "pd", "pute", "nègre", "enculé"]
-    if any(keyword in comment_text.lower() for keyword in hate_keywords):
-        offenses.append("Incitation à la haine")
-        severity = "🔴"
-    
-    insult_keywords = ["connard", "salope", "imbécile", "idiot", "débile"]
-    if any(keyword in comment_text.lower() for keyword in insult_keywords):
-        offenses.append("Injure publique")
-        severity = "🟠"
-        
-    if len(offenses) == 0:
-        offenses.append("Aucune infraction claire détectée")
-        severity = "🟢"
-    
-    legal_advice = "Ce commentaire peut constituer une infraction selon l'article 29 de la loi de 1881 sur la liberté de la presse."
-    
-    return {
-        "offenses": offenses,
-        "severity": severity,
-        "legal_advice": legal_advice
-    }
+    prompt = f"""
+Tu es un expert juridique spécialisé dans les propos haineux en ligne.
 
-# PDF generation function
+Voici un commentaire posté sur {platform} : "{comment_text}"
+
+Analyse s'il contient :
+- Une infraction (injure publique, incitation à la haine, diffamation, etc.)
+- Son niveau de gravité (faible, moyen, élevé)
+- Une qualification juridique claire
+- Une recommandation ou conseil légal
+
+Ta réponse doit être au format JSON avec les champs suivants :
+{{
+    "offenses": [...],
+    "severity": "🟢 / 🟠 / 🔴",
+    "legal_advice": "...",
+    "reasoning": "..."
+}}
+    """
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Tu es un juriste spécialisé en droit pénal et numérique."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3
+        )
+        content = response["choices"][0]["message"]["content"]
+        return json.loads(content)
+    except Exception as e:
+        st.error(f"Erreur d'analyse IA : {e}")
+        return {
+            "offenses": ["Erreur d’analyse"],
+            "severity": "🟠",
+            "legal_advice": "Une erreur est survenue. Réessayez.",
+            "reasoning": ""
+        }
+
+# 📄 Générer un PDF
 def generate_pdf(user_info, comment_info, analysis_result):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
     
-    # Title
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(200, 10, txt="Plainte pour propos haineux en ligne", ln=1, align='C')
     pdf.ln(10)
     
-    # User information
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(200, 10, txt="Informations du plaignant", ln=1)
     pdf.set_font("Arial", size=12)
@@ -58,7 +72,6 @@ def generate_pdf(user_info, comment_info, analysis_result):
     pdf.cell(200, 10, txt=f"Téléphone: {user_info.get('phone', 'Non renseigné')}", ln=1)
     pdf.ln(10)
     
-    # Incident information
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(200, 10, txt="Détails de l'incident", ln=1)
     pdf.set_font("Arial", size=12)
@@ -67,23 +80,23 @@ def generate_pdf(user_info, comment_info, analysis_result):
     pdf.cell(200, 10, txt=f"Date: {datetime.now().strftime('%d/%m/%Y %H:%M')}", ln=1)
     pdf.ln(5)
     
-    # Comment
-    pdf.multi_cell(0, 10, txt=f"Commentaire signalé: {comment_info['comment']}")
+    pdf.multi_cell(0, 10, txt=f"Commentaire signalé : {comment_info['comment']}")
     pdf.ln(10)
     
-    # Analysis
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(200, 10, txt="Analyse juridique", ln=1)
     pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, txt=f"Infractions potentielles: {', '.join(analysis_result['offenses'])}", ln=1)
-    pdf.multi_cell(0, 10, txt=f"Conseil juridique: {analysis_result['legal_advice']}")
+    pdf.cell(200, 10, txt=f"Infractions détectées : {', '.join(analysis_result['offenses'])}", ln=1)
+    pdf.cell(200, 10, txt=f"Niveau de gravité : {analysis_result['severity']}", ln=1)
+    pdf.ln(5)
+    pdf.multi_cell(0, 10, txt=f"Conseil : {analysis_result['legal_advice']}")
+    pdf.ln(5)
+    pdf.multi_cell(0, 10, txt=f"Analyse : {analysis_result.get('reasoning', '')}")
     
-    # Footer
     pdf.ln(20)
     pdf.set_font("Arial", 'I', 10)
-    pdf.cell(0, 10, txt="Document généré automatiquement par HateClick v0.1 - Ne remplace pas un conseil juridique professionnel", ln=1, align='C')
+    pdf.cell(0, 10, txt="Document généré automatiquement par HateClick v0.1", ln=1, align='C')
     
-    # Save to temporary file
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
     pdf_path = temp_file.name
     pdf.output(pdf_path)
@@ -91,22 +104,21 @@ def generate_pdf(user_info, comment_info, analysis_result):
     
     return pdf_path
 
-# Screen 1 - Report
+# Écran 1 - Signalement
 def screen_report():
     st.title("Signale un commentaire haineux en 2 minutes")
     
     with st.form("report_form"):
-        url = st.text_input("Lien du post ou screenshot (coller l'URL ou importer un screenshot)")
+        url = st.text_input("Lien du post ou capture (URL ou image)")
         comment = st.text_area("Copier-coller du commentaire", height=150)
         platform = st.selectbox("Plateforme", ["TikTok", "Instagram", "X (Twitter)", "YouTube", "Facebook", "Autre"])
         author = st.text_input("Pseudo de l'auteur (optionnel)")
-        screenshot = st.file_uploader("📎 Pièce jointe : capture écran (optionnelle)", type=['png', 'jpg', 'jpeg'])
+        screenshot = st.file_uploader("📎 Capture écran (optionnelle)", type=['png', 'jpg', 'jpeg'])
         
         submitted = st.form_submit_button("Analyser le commentaire")
-        
         if submitted:
             if not comment:
-                st.error("Veuillez saisir le commentaire à analyser")
+                st.error("Veuillez saisir le commentaire.")
             else:
                 st.session_state.user_input = {
                     "url": url,
@@ -117,7 +129,7 @@ def screen_report():
                 }
                 st.session_state.current_screen = 2
 
-# Screen 2 - Analysis
+# Écran 2 - Analyse IA
 def screen_analysis():
     st.title("Voici ce que nous avons détecté")
     
@@ -133,17 +145,18 @@ def screen_analysis():
     
     st.subheader("Suggestions")
     st.info(analysis_result["legal_advice"])
-    st.info("Nous vous recommandons de conserver une copie et de générer une plainte.")
+    
+    if "reasoning" in analysis_result and analysis_result["reasoning"]:
+        st.caption(analysis_result["reasoning"])
     
     if st.button("Générer ma plainte"):
         st.session_state.analysis_result = analysis_result
         st.session_state.current_screen = 3
 
-# Screen 3 - Complaint
+# Écran 3 - Génération de la plainte
 def screen_complaint():
     st.title("Voici ton document de plainte à imprimer ou envoyer")
     
-    # Collect user information
     with st.expander("Vos coordonnées (optionnel)"):
         name = st.text_input("Nom Prénom")
         email = st.text_input("Email")
@@ -155,14 +168,12 @@ def screen_complaint():
         "phone": phone
     }
     
-    # Generate PDF
     pdf_path = generate_pdf(
         user_info,
         st.session_state.user_input,
         st.session_state.analysis_result
     )
     
-    # Display PDF download link
     with open(pdf_path, "rb") as f:
         pdf_bytes = f.read()
     
@@ -173,18 +184,14 @@ def screen_complaint():
         mime="application/pdf"
     )
     
-    st.subheader("Options")
+    st.subheader("Options supplémentaires")
     col1, col2, col3, col4 = st.columns(4)
-    
     with col1:
-        st.button("Imprimer")
-    
+        st.button("🖨️ Imprimer")
     with col2:
         st.link_button("Envoyer à PHAROS", "https://www.internet-signalement.gouv.fr")
-    
     with col3:
         st.link_button("Commissariat proche", "https://www.google.com/maps/search/commissariat")
-    
     with col4:
         st.link_button("Contacter une asso", "https://www.e-enfance.org")
     
@@ -194,31 +201,25 @@ def screen_complaint():
         st.session_state.analysis_result = None
         st.rerun()
 
-# Main app logic
+# 🎬 Main app
 def main():
     st.sidebar.title("HateClick v0.1")
     st.sidebar.markdown("""
-    Prototype d'outil de signalement de commentaires haineux en ligne.
+Prototype de signalement intelligent de commentaires haineux.
     
-    **Fonctionnalités :**
-    - Analyse de commentaire
-    - Qualification juridique
-    - Génération de plainte PDF
+Fonctionnalités :
+- Analyse IA
+- Qualification juridique
+- PDF plainte à imprimer/envoyer
     """)
-    
     st.sidebar.markdown("---")
     st.sidebar.markdown("""
-    ⚠️ **Disclaimer :**  
-    Cette application ne remplace pas un conseil juridique professionnel.  
-    Les signalements anonymes ne sont pas recevables en justice.
+⚠️ **Disclaimer :**  
+Cette application ne remplace pas un avocat. Les signalements anonymes ne sont pas recevables.
     """)
     
     if st.session_state.current_screen == 1:
         screen_report()
     elif st.session_state.current_screen == 2:
         screen_analysis()
-    elif st.session_state.current_screen == 3:
-        screen_complaint()
-
-if __name__ == "__main__":
-    main()
+    elif st.session_state.current_screen ==
