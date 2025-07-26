@@ -244,3 +244,120 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+def screen_report():
+    st.title("🛡️ Signalement de Contenu Haineux")
+
+    with st.form("report_form"):
+        st.subheader("1. Description du contenu")
+        url = st.text_input("URL du contenu*", help="Lien permanent vers le contenu litigieux")
+        comment = st.text_area("Contenu à signaler*", height=150,
+                               help="Copiez intégralement le texte problématique")
+        platform = st.selectbox("Plateforme*", ["Twitter/X", "Facebook", "Instagram", "TikTok", "YouTube", "Autre"])
+        author = st.text_input("Auteur* (pseudo/identifiant)")
+
+        st.subheader("2. Vos coordonnées")
+        name = st.text_input("Nom complet*")
+        address = st.text_area("Adresse complète*",
+                               placeholder="N°, Rue, Code postal, Ville")
+        phone = st.text_input("Téléphone*")
+        email = st.text_input("Email*")
+
+        if st.form_submit_button("Analyser le contenu"):
+            if not all([comment, platform, author, name, address, phone, email]):
+                st.error("Veuillez remplir tous les champs obligatoires (*)")
+            else:
+                st.session_state.user_input = {
+                    "url": url,
+                    "comment": comment,
+                    "platform": platform,
+                    "author": author,
+                    "user_info": {
+                        "name": name,
+                        "address": address,
+                        "phone": phone,
+                        "email": email
+                    }
+                }
+                st.session_state.current_screen = 2
+                st.rerun()
+
+def screen_analysis():
+    st.title("🔍 Analyse Juridique")
+
+    with st.spinner("Analyse en cours par nos juristes..."):
+        analysis = analyze_content(
+            st.session_state.user_input["comment"],
+            st.session_state.user_input["platform"]
+        )
+        st.session_state.analysis = analysis
+
+    st.subheader("Infractions identifiées")
+    for offense in analysis.get("infractions", []):
+        with st.expander(f"⚖️ {offense.get('article')}"):
+            st.markdown(f"**Description:** {offense.get('description')}")
+            st.markdown(f"**Peine encourue:** {offense.get('peine')}")
+
+    st.subheader("📊 Probabilité de succès")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Chances de succès", analysis.get("success_chance"))
+    with col2:
+        st.metric("Délai de prescription", analysis.get("delais", {}).get("prescription"))
+
+    st.subheader("💶 Coûts estimés")
+    costs = analysis.get("couts", {})
+    st.markdown(f"""
+    - **Dépôt de plainte:** {costs.get("plainte", "Gratuit")}
+    - **Honoraires d'avocat:** {costs.get("avocat", "Variable")}
+    - **Coût total estimé:** {costs.get("total", "N/A")}
+    """)
+
+    st.subheader("🔎 Preuves nécessaires")
+    for proof in analysis.get("preuves", []):
+        st.markdown(f"- {proof}")
+
+    if st.button("📄 Générer ma plainte officielle"):
+        st.session_state.current_screen = 3
+        st.rerun()
+
+def screen_complaint():
+    st.title("📄 Votre plainte est prête")
+
+    pdf_path = generate_legal_report(
+        st.session_state.user_input["user_info"],
+        st.session_state.user_input,
+        st.session_state.analysis
+    )
+
+    # Affichage du PDF
+    with open(pdf_path, "rb") as f:
+        st.download_button(
+            "⬇️ Télécharger la plainte PDF",
+            data=f.read(),
+            file_name=f"plainte_{datetime.now().strftime('%Y%m%d')}.pdf",
+            mime="application/pdf"
+        )
+
+    st.markdown("""
+    **📌 Procédure recommandée:**
+    1. Imprimez et signez le document
+    2. Rassemblez toutes les preuves listées
+    3. Déposez la plainte en commissariat ou envoyez-la au procureur
+
+    Vous pouvez aussi signaler en ligne sur PHAROS.
+    """)
+
+    st.subheader("🛠️ Ressources utiles")
+    cols = st.columns(3)
+    with cols[0]:
+        st.link_button("PHAROS", "https://www.internet-signalement.gouv.fr")
+    with cols[1]:
+        st.link_button("Trouver un avocat", "https://www.annuaire-des-avocats.fr")
+    with cols[2]:
+        st.link_button("Commissariats", "https://www.google.com/maps/search/commissariat")
+
+    if st.button("↩️ Nouveau signalement"):
+        st.session_state.current_screen = 1
+        st.rerun()
+
