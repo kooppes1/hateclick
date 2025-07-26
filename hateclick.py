@@ -5,32 +5,42 @@ import tempfile
 import json
 from openai import OpenAI
 
-# 🔐 Initialise le client OpenAI avec la clé secrète Streamlit
+# 🔐 Initialise le client OpenAI avec la clé secrète
 client = OpenAI(api_key=st.secrets["openai_api_key"])
 
 # Initialise l'écran par défaut
 if 'current_screen' not in st.session_state:
     st.session_state.current_screen = 1
 
-# 🔍 Analyse IA avec GPT-3.5
+# 🔍 Analyse IA avec GPT enrichie
 def analyze_comment(comment_text, platform):
     prompt = f"""
-Tu es un juriste expert en droit français, spécialisé dans les propos haineux en ligne.
+Tu es un juriste expert en droit français spécialisé dans les propos haineux en ligne.
 
 Voici un commentaire posté sur {platform} : "{comment_text}"
 
 Analyse s'il contient :
-- Une infraction (injure publique, incitation à la haine, diffamation, etc.)
-- Son niveau de gravité (faible, moyen, élevé)
+- Une ou plusieurs infractions (injure publique, incitation à la haine, diffamation, etc.)
+- Le niveau de gravité (faible, moyen, élevé) sous forme d’emoji (🟢 / 🟠 / 🔴)
 - Une qualification juridique claire
-- Une recommandation ou conseil légal
+- Une recommandation légale
+- Les sanctions pénales applicables (articles de loi, amendes, peines encourues)
+- Les conditions juridiques à remplir pour que la plainte aboutisse
+- Les chances estimées de succès (faible, moyenne, élevée)
+- Une estimation du coût d’une procédure (plainte simple, avec ou sans avocat)
 
 Réponds au format JSON :
 {{
-    "offenses": [...],
-    "severity": "🟢 / 🟠 / 🔴",
-    "legal_advice": "...",
-    "reasoning": "..."
+  "offenses": [...],
+  "severity": "🟢 / 🟠 / 🔴",
+  "legal_advice": "...",
+  "reasoning": "...",
+  "penalty": {{
+    "text": "...",
+    "conditions": [...],
+    "chances": "...",
+    "estimated_cost": "..."
+  }}
 }}
 """
     try:
@@ -50,7 +60,13 @@ Réponds au format JSON :
             "offenses": ["Erreur d’analyse"],
             "severity": "🟠",
             "legal_advice": "Une erreur est survenue. Réessayez.",
-            "reasoning": ""
+            "reasoning": "",
+            "penalty": {
+                "text": "Non disponible",
+                "conditions": [],
+                "chances": "Inconnues",
+                "estimated_cost": "Inconnu"
+            }
         }
 
 # 📄 Génération du PDF
@@ -91,6 +107,16 @@ def generate_pdf(user_info, comment_info, analysis_result):
     pdf.multi_cell(0, 10, txt=f"Conseil : {analysis_result['legal_advice']}")
     pdf.ln(5)
     pdf.multi_cell(0, 10, txt=f"Analyse IA : {analysis_result.get('reasoning', '')}")
+
+    if "penalty" in analysis_result:
+        pdf.ln(10)
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(200, 10, txt="Informations complémentaires", ln=1)
+        pdf.set_font("Arial", size=12)
+        pdf.multi_cell(0, 10, txt=f"Sanctions : {analysis_result['penalty']['text']}")
+        pdf.multi_cell(0, 10, txt=f"Conditions : {'; '.join(analysis_result['penalty']['conditions'])}")
+        pdf.cell(200, 10, txt=f"Chances de succès : {analysis_result['penalty']['chances']}", ln=1)
+        pdf.cell(200, 10, txt=f"Coût estimé : {analysis_result['penalty']['estimated_cost']}", ln=1)
 
     pdf.ln(20)
     pdf.set_font("Arial", 'I', 10)
@@ -144,6 +170,20 @@ def screen_analysis():
 
     if analysis_result.get("reasoning"):
         st.caption(f"🧠 Analyse IA : {analysis_result['reasoning']}")
+
+    if analysis_result.get("penalty"):
+        st.subheader("📚 Sanctions légales")
+        st.write(analysis_result["penalty"]["text"])
+
+        st.subheader("📌 Conditions à remplir")
+        for c in analysis_result["penalty"]["conditions"]:
+            st.write(f"- {c}")
+
+        st.subheader("📈 Chances de succès")
+        st.write(analysis_result["penalty"]["chances"])
+
+        st.subheader("💸 Coût estimé")
+        st.write(analysis_result["penalty"]["estimated_cost"])
 
     if st.button("Générer ma plainte"):
         st.session_state.analysis_result = analysis_result
