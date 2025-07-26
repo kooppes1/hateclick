@@ -23,7 +23,7 @@ def clean_text(text):
 # Initialisation client OpenAI
 client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-# Initialiser l'état
+# Initialisation session
 if 'current_screen' not in st.session_state:
     st.session_state.current_screen = 1
 
@@ -100,7 +100,7 @@ Merci de répondre uniquement avec ce JSON.
             "conseils": []
         }
 
-# Génération PDF (sans police externe)
+# Génération PDF
 def generate_legal_report(user_info, content_info, analysis):
     pdf = FPDF()
     pdf.add_page()
@@ -283,18 +283,25 @@ def screen_complaint():
     1. Imprimez et signez le document
     2. Rassemblez toutes les preuves listées
     3. Déposez en commissariat ou envoyez au procureur
-
-    Vous pouvez aussi signaler sur [PHAROS](https://www.internet-signalement.gouv.fr).
     """)
 
     if st.button("↩️ Nouveau signalement"):
         st.session_state.current_screen = 1
         st.rerun()
 
-# Navigation principale
+# Barre latérale + navigation
 def main():
     st.sidebar.title("⚖️ HateClick")
-    st.sidebar.markdown("**Outil de signalement juridique automatisé**\nConforme à la procédure pénale française")
+    st.sidebar.markdown("""
+**Outil de signalement juridique automatisé**  
+Conforme à la procédure pénale française  
+""")
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("""
+⚠️ *Cet outil ne remplace pas une consultation juridique.  
+Pour un avis personnalisé, contactez un avocat.*
+""")
+
     if st.session_state.current_screen == 1:
         screen_report()
     elif st.session_state.current_screen == 2:
