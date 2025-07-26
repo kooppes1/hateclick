@@ -5,8 +5,8 @@ import tempfile
 import json
 from openai import OpenAI
 
-# Initialise le client OpenAI (clé auto lue via st.secrets)
-client = OpenAI()
+# 🔐 Initialise le client OpenAI avec la clé secrète Streamlit
+client = OpenAI(api_key=st.secrets["openai_api_key"])
 
 # Initialise l'écran par défaut
 if 'current_screen' not in st.session_state:
