@@ -8,7 +8,7 @@ from openai import OpenAI
 
 # Configuration de la page
 st.set_page_config(
-    page_title="HateClick - Signalement Légal",
+    page_title="SisterSoundFR - Signalement Légal",
     page_icon="⚖️",
     layout="centered"
 )
@@ -184,13 +184,13 @@ Ce contenu constitue selon moi les infractions détaillées ci-dessous.
     pdf.ln(15)
     pdf.cell(190, 7, "Signature précédée de la mention « Lu et approuvé »", ln=1, align='C')
     pdf.set_font("Helvetica", 'I', 8)
-    pdf.cell(190, 5, "Document généré par HateClick - Ne remplace pas une consultation juridique", ln=1, align='C')
+    pdf.cell(190, 5, "Document généré par SisterSoundFR - Ne remplace pas une consultation juridique", ln=1, align='C')
 
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
     pdf.output(temp_file.name)
     return temp_file.name
 
-# UI écran 1
+# Interface écran 1
 def screen_report():
     st.title("🛡️ Signalement de Contenu Haineux")
     with st.form("report_form"):
@@ -225,7 +225,7 @@ def screen_report():
                 st.session_state.current_screen = 2
                 st.rerun()
 
-# UI écran 2
+# Interface écran 2
 def screen_analysis():
     st.title("🔍 Analyse Juridique")
     with st.spinner("Analyse en cours par nos juristes..."):
@@ -264,7 +264,7 @@ def screen_analysis():
         st.session_state.current_screen = 3
         st.rerun()
 
-# UI écran 3
+# Interface écran 3
 def screen_complaint():
     st.title("📄 Votre plainte est prête")
     pdf_path = generate_legal_report(
@@ -279,27 +279,44 @@ def screen_complaint():
                            mime="application/pdf")
 
     st.markdown("""
-    **📌 Procédure recommandée :**
-    1. Imprimez et signez le document
-    2. Rassemblez toutes les preuves listées
-    3. Déposez en commissariat ou envoyez au procureur
-    """)
+**📌 Procédure recommandée :**
+1. Imprimez et signez le document
+2. Rassemblez toutes les preuves listées
+3. Déposez en commissariat ou envoyez au procureur
+
+**🔗 Liens utiles :**
+- [PHAROS](https://www.internet-signalement.gouv.fr)
+- [Annuaire des avocats](https://www.annuaire-des-avocats.fr)
+- [Commissariats proches (Google Maps)](https://www.google.com/maps/search/commissariat)
+- [France Victimes](https://www.france-victimes.fr)
+- [Association e-Enfance](https://www.e-enfance.org)
+- [Pré-plainte en ligne](https://www.pre-plainte-en-ligne.gouv.fr)
+
+📱 **Suivez-nous :** [TikTok](https://www.tiktok.com/@sistersoundfr) | [Instagram](https://www.instagram.com/sistersoundfr/)
+""")
 
     if st.button("↩️ Nouveau signalement"):
         st.session_state.current_screen = 1
         st.rerun()
 
-# Barre latérale + navigation
+# Sidebar et navigation
 def main():
-    st.sidebar.title("⚖️ HateClick")
+    st.sidebar.title("⚖️ SisterSoundFR")
     st.sidebar.markdown("""
 **Outil de signalement juridique automatisé**  
-Conforme à la procédure pénale française  
+Conforme à la procédure pénale française
 """)
     st.sidebar.markdown("---")
     st.sidebar.markdown("""
-⚠️ *Cet outil ne remplace pas une consultation juridique.  
-Pour un avis personnalisé, contactez un avocat.*
+⚠️ *Cet outil ne remplace pas une consultation juridique.*
+""")
+    st.sidebar.markdown("""
+📬 Une question ? [Contactez-nous](mailto:crozain.marketing@gmail.com)
+""")
+    st.sidebar.markdown("""
+📱 Suivez-nous sur les réseaux sociaux :  
+- [TikTok](https://www.tiktok.com/@sistersoundfr)  
+- [Instagram](https://www.instagram.com/sistersoundfr/)
 """)
 
     if st.session_state.current_screen == 1:
