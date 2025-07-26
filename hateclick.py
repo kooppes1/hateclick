@@ -10,6 +10,7 @@ from openai import OpenAI
 client = OpenAI(api_key=st.secrets["openai_api_key"])
 
 # 🧼 Fonction utilitaire pour nettoyer les emojis
+
 def remove_emojis(text):
     return re.sub(r'[^\x00-\x7F\u00A0-\u00FF\u0100-\u017F]+', '', text)
 
@@ -22,7 +23,7 @@ def analyze_comment(comment_text, platform):
     prompt = f"""
 Tu es un juriste expert en droit français spécialisé dans les propos haineux en ligne.
 
-Voici un commentaire posté sur {platform} : "{comment_text}"
+Voici un commentaire posté sur {platform} : \"{comment_text}\"
 
 Analyse s'il contient :
 - Une ou plusieurs infractions (injure publique, incitation à la haine, diffamation, etc.)
@@ -107,7 +108,6 @@ def generate_pdf(user_info, comment_info, analysis_result):
     pdf.set_font("Arial", size=12)
     pdf.cell(200, 10, txt=f"Infractions détectées : {', '.join(analysis_result['offenses'])}", ln=1)
 
-    # Nettoyage emoji gravité
     severity_clean = analysis_result['severity'].replace("🟢", "faible").replace("🟠", "moyenne").replace("🔴", "élevée")
     pdf.cell(200, 10, txt=f"Niveau de gravité : {severity_clean}", ln=1)
     pdf.ln(5)
@@ -126,7 +126,12 @@ def generate_pdf(user_info, comment_info, analysis_result):
         if conditions:
             pdf.cell(200, 10, txt="Conditions :", ln=1)
             for cond in conditions:
-                pdf.multi_cell(0, 10, txt=remove_emojis(cond))
+                safe_cond = remove_emojis(cond).strip()
+                if len(safe_cond) > 0:
+                    try:
+                        pdf.multi_cell(0, 10, txt=safe_cond)
+                    except:
+                        pdf.multi_cell(0, 10, txt="[⚠️ Texte non imprimable supprimé]")
 
         pdf.cell(200, 10, txt=f"Chances de succès : {analysis_result['penalty']['chances']}", ln=1)
         pdf.cell(200, 10, txt=f"Coût estimé : {analysis_result['penalty']['estimated_cost']}", ln=1)
@@ -138,134 +143,3 @@ def generate_pdf(user_info, comment_info, analysis_result):
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
     pdf.output(temp_file.name)
     return temp_file.name
-
-# Écran 1 - Signalement
-def screen_report():
-    st.title("Signale un commentaire haineux en 2 minutes")
-    with st.form("report_form"):
-        url = st.text_input("Lien du post (optionnel)")
-        comment = st.text_area("Copier-coller du commentaire", height=150)
-        platform = st.selectbox("Plateforme", ["TikTok", "Instagram", "X (Twitter)", "YouTube", "Facebook", "Autre"])
-        author = st.text_input("Pseudo de l'auteur (optionnel)")
-        screenshot = st.file_uploader("📎 Capture écran (optionnelle)", type=['png', 'jpg', 'jpeg'])
-
-        submitted = st.form_submit_button("Analyser le commentaire")
-        if submitted:
-            if not comment:
-                st.error("Veuillez saisir un commentaire.")
-            else:
-                st.session_state.user_input = {
-                    "url": url,
-                    "comment": comment,
-                    "platform": platform,
-                    "author": author,
-                    "screenshot": screenshot
-                }
-                st.session_state.current_screen = 2
-
-# Écran 2 - Résultat IA
-def screen_analysis():
-    st.title("Voici ce que nous avons détecté")
-    user_input = st.session_state.user_input
-    analysis_result = analyze_comment(user_input["comment"], user_input["platform"])
-
-    st.subheader("Type probable d'infraction")
-    for offense in analysis_result["offenses"]:
-        st.write(f"- {offense}")
-
-    st.subheader("Niveau de gravité")
-    st.write(analysis_result["severity"])
-
-    st.subheader("Suggestions")
-    st.info(analysis_result["legal_advice"])
-
-    if analysis_result.get("reasoning"):
-        st.caption(f"🧠 Analyse IA : {analysis_result['reasoning']}")
-
-    if analysis_result.get("penalty"):
-        st.subheader("📚 Sanctions légales")
-        st.write(analysis_result["penalty"]["text"])
-
-        st.subheader("📌 Conditions à remplir")
-        for c in analysis_result["penalty"]["conditions"]:
-            st.write(f"- {c}")
-
-        st.subheader("📈 Chances de succès")
-        st.write(analysis_result["penalty"]["chances"])
-
-        st.subheader("💸 Coût estimé")
-        st.write(analysis_result["penalty"]["estimated_cost"])
-
-    if st.button("Générer ma plainte"):
-        st.session_state.analysis_result = analysis_result
-        st.session_state.current_screen = 3
-
-# Écran 3 - PDF final
-def screen_complaint():
-    st.title("Voici ton document de plainte à imprimer ou envoyer")
-
-    with st.expander("Vos coordonnées (optionnel)"):
-        name = st.text_input("Nom Prénom")
-        email = st.text_input("Email")
-        phone = st.text_input("Téléphone")
-
-    user_info = {
-        "name": name,
-        "email": email,
-        "phone": phone
-    }
-
-    pdf_path = generate_pdf(
-        user_info,
-        st.session_state.user_input,
-        st.session_state.analysis_result
-    )
-
-    with open(pdf_path, "rb") as f:
-        st.download_button(
-            label="📥 Télécharger la plainte",
-            data=f.read(),
-            file_name="plainte_hateclick.pdf",
-            mime="application/pdf"
-        )
-
-    st.subheader("Options utiles")
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.button("🖨️ Imprimer")
-    with col2:
-        st.link_button("Envoyer à PHAROS", "https://www.internet-signalement.gouv.fr")
-    with col3:
-        st.link_button("Commissariat", "https://www.google.com/maps/search/commissariat")
-    with col4:
-        st.link_button("Contacter une asso", "https://www.e-enfance.org")
-
-    if st.button("Retour à l'accueil"):
-        st.session_state.current_screen = 1
-        st.session_state.user_input = None
-        st.session_state.analysis_result = None
-        st.rerun()
-
-# 🧠 App principale
-def main():
-    st.sidebar.title("HateClick v0.1")
-    st.sidebar.markdown("""
-Prototype de signalement de propos haineux.
-
-Fonctionnalités :
-- Analyse juridique par IA 🤖
-- Génération de plainte PDF 📝
-- Conseils utiles 💡
-    """)
-    st.sidebar.markdown("---")
-    st.sidebar.warning("⚠️ Cette application ne remplace pas un conseil juridique professionnel.")
-
-    if st.session_state.current_screen == 1:
-        screen_report()
-    elif st.session_state.current_screen == 2:
-        screen_analysis()
-    elif st.session_state.current_screen == 3:
-        screen_complaint()
-
-if __name__ == "__main__":
-    main()
